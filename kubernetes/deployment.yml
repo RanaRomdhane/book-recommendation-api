@@ -5,7 +5,7 @@ metadata:
   labels:
     app: book-api
 spec:
-  replicas: 3
+  replicas: 2
   selector:
     matchLabels:
       app: book-api
@@ -20,7 +20,7 @@ spec:
     spec:
       containers:
       - name: book-api
-        image: YOUR_DOCKER_USERNAME/book-recommendation-api:latest
+        image: ranaromdhane/book-recommendation-api:latest
         ports:
         - containerPort: 3000
         env:
