@@ -28,7 +28,7 @@ jobs:
       run: npm ci
     
     - name: Run tests
-      run: npm test
+      run: npm test -- --detectOpenHandles --forceExit
     
     - name: Generate test coverage
       run: npm run test:coverage

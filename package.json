@@ -6,9 +6,9 @@
     "scripts": {
     "start": "node src/app.js",
     "dev": "nodemon src/app.js",
-    "test": "jest --verbose",
+    "test": "jest --verbose --detectOpenHandles --forceExit",
     "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage --coverageReporters=text-lcov | coveralls"
+    "test:coverage": "jest --coverage --detectOpenHandles --forceExit"
     },
     "dependencies": {
       "express": "^4.18.2",
