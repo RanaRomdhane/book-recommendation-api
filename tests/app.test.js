@@ -1,7 +1,31 @@
 const request = require('supertest');
+
+// Import the app without starting the server
 const app = require('../src/app');
 
 describe('Book Recommendation API', () => {
+  let server;
+
+  // Start server before all tests
+  beforeAll((done) => {
+    server = app.listen(0, () => { // Use port 0 for random available port
+      console.log('Test server started');
+      done();
+    });
+  });
+
+  // Close server after all tests
+  afterAll((done) => {
+    if (server) {
+      server.close(() => {
+        console.log('Test server closed');
+        done();
+      });
+    } else {
+      done();
+    }
+  });
+
   it('should return health status', async () => {
     const res = await request(app).get('/health');
     expect(res.statusCode).toEqual(200);
