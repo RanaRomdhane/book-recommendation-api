@@ -1,0 +1,29 @@
+{
+    "name": "book-recommendation-api",
+    "version": "1.0.0",
+    "description": "A DevOps-enabled book recommendation API",
+    "main": "src/app.js",
+    "scripts": {
+      "start": "node src/app.js",
+      "dev": "nodemon src/app.js",
+      "test": "jest",
+      "test:watch": "jest --watch",
+      "test:coverage": "jest --coverage"
+    },
+    "dependencies": {
+      "express": "^4.18.2",
+      "cors": "^2.8.5",
+      "helmet": "^7.0.0",
+      "express-rate-limit": "^6.8.1",
+      "winston": "^3.10.0",
+      "uuid": "^9.0.0"
+    },
+    "devDependencies": {
+      "jest": "^29.6.1",
+      "supertest": "^6.3.1",
+      "nodemon": "^3.0.1"
+    },
+    "keywords": ["api", "books", "recommendation", "devops"],
+    "author": "Rana Romdhane",
+    "license": "MIT"
+  }
