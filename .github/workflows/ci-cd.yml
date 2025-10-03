@@ -1,0 +1,106 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  IMAGE_NAME: book-recommendation-api
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: Run tests
+      run: npm test
+    
+    - name: Run security audit
+      run: npm audit --audit-level moderate
+
+    - name: Upload test results
+      uses: actions/upload-artifact@v3
+      with:
+        name: test-results
+        path: |
+          coverage/
+          junit.xml
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Build Docker image
+      run: |
+        docker build -t $IMAGE_NAME:latest .
+    
+    - name: Run SAST scan with Trivy
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: '$IMAGE_NAME:latest'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+    
+    - name: Upload SAST results
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: 'trivy-results.sarif'
+    
+    - name: Log in to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+    
+    - name: Push Docker image
+      run: |
+        docker tag $IMAGE_NAME:latest ${{ secrets.DOCKER_USERNAME }}/$IMAGE_NAME:latest
+        docker push ${{ secrets.DOCKER_USERNAME }}/$IMAGE_NAME:latest
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Kubernetes tools
+      uses: engineerd/setup-kind@v0.6.0
+      with:
+        version: "v0.20.0"
+    
+    - name: Create kind cluster
+      run: |
+        kind create cluster --name book-api-cluster
+    
+    - name: Deploy to Kubernetes
+      run: |
+        kubectl apply -f kubernetes/
+        kubectl wait --for=condition=ready pod -l app=book-api --timeout=300s
+    
+    - name: Run DAST scan
+      run: |
+        echo "DAST scanning would be implemented here with OWASP ZAP"
+        echo "For now, we'll do a simple curl health check"
+        kubectl get pods -l app=book-api

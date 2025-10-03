@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: book-api-service
+spec:
+  selector:
+    app: book-api
+  ports:
+  - port: 80
+    targetPort: 3000
+  type: LoadBalancer
