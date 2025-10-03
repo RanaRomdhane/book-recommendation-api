@@ -4,28 +4,6 @@ const request = require('supertest');
 const app = require('../src/app');
 
 describe('Book Recommendation API', () => {
-  let server;
-
-  // Start server before all tests
-  beforeAll((done) => {
-    server = app.listen(0, () => { // Use port 0 for random available port
-      console.log('Test server started');
-      done();
-    });
-  });
-
-  // Close server after all tests
-  afterAll((done) => {
-    if (server) {
-      server.close(() => {
-        console.log('Test server closed');
-        done();
-      });
-    } else {
-      done();
-    }
-  });
-
   it('should return health status', async () => {
     const res = await request(app).get('/health');
     expect(res.statusCode).toEqual(200);
@@ -65,6 +43,33 @@ describe('Book Recommendation API', () => {
 
   it('should return 404 for non-existent book', async () => {
     const res = await request(app).get('/books/999');
+    expect(res.statusCode).toEqual(404);
+    expect(res.body.success).toEqual(false);
+  });
+
+  it('should handle invalid JSON in request body', async () => {
+    const res = await request(app)
+      .post('/recommendations')
+      .set('Content-Type', 'application/json')
+      .send('invalid json');
+    
+    expect(res.statusCode).toEqual(400);
+    expect(res.body.success).toEqual(false);
+    expect(res.body.error).toContain('Invalid JSON');
+  });
+
+  it('should handle empty JSON object', async () => {
+    const res = await request(app)
+      .post('/recommendations')
+      .set('Content-Type', 'application/json')
+      .send('{}');
+    
+    expect(res.statusCode).toEqual(200);
+    expect(res.body.success).toEqual(true);
+  });
+
+  it('should handle unknown endpoints', async () => {
+    const res = await request(app).get('/unknown-endpoint');
     expect(res.statusCode).toEqual(404);
     expect(res.body.success).toEqual(false);
   });
