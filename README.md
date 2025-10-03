@@ -126,8 +126,8 @@ Deploys to Kubernetes
 ### Manual Deployment
 ```bash
 # Build and push Docker image
-docker build -t your-username/book-recommendation-api .
-docker push your-username/book-recommendation-api
+docker build -t ranaromdhane/book-recommendation-api .
+docker push ranaromdhane/book-recommendation-api
 
 # Deploy to Kubernetes
 kubectl apply -f kubernetes/
