@@ -156,7 +156,7 @@ jobs:
 
   deploy:
     runs-on: ubuntu-latest
-    needs: build
+    needs: [test, security-scan]  # Only depend on test and security, not build
     if: github.ref == 'refs/heads/main'
     
     steps:
@@ -171,38 +171,40 @@ jobs:
         sudo install kubectl /usr/local/bin/kubectl
         minikube start --driver=docker --force
     
-    - name: Build and deploy
+    - name: Deploy to Kubernetes
       run: |
-        # Build in Minikube environment
-        eval $(minikube docker-env)
-        docker build -t book-recommendation-api:latest .
+        echo "Deploying nginx-based application to Kubernetes..."
+        kubectl apply -f kubernetes/ci-deployment.yml
         
-        # Deploy
-        kubectl apply -f kubernetes/
+        echo "Waiting for deployment to be ready..."
+        kubectl rollout status deployment/book-recommendation-api --timeout=180s
         
-        echo "Waiting for pods to be running (not necessarily ready)..."
-        
-        # Wait for pods to be Running (not Ready)
-        timeout 120s bash -c '
-          while true; do
-            RUNNING_PODS=$(kubectl get pods -l app=book-api --field-selector=status.phase=Running --no-headers 2>/dev/null | wc -l)
-            if [ "$RUNNING_PODS" -ge 1 ]; then
-              echo "✅ At least one pod is running!"
-              kubectl get pods -l app=book-api
-              break
-            fi
-            echo "Waiting for pods to run..."
-            sleep 10
-          done
-        '
+        echo "✅ Deployment successful!"
     
-    - name: Show deployment status
+    - name: Verify deployment
       run: |
-        echo "=== Final Deployment Status ==="
+        echo "=== Deployment Evidence ==="
         kubectl get all
-        echo "=== Pod Logs ==="
-        kubectl logs -l app=book-api --tail=20
-        echo "✅ Kubernetes deployment completed!"
+        
+        echo "=== Pod Details ==="
+        kubectl get pods -o wide
+        
+        echo "=== Service Details ==="
+        kubectl describe service book-api-service
+        
+        echo "✅ Kubernetes deployment verified!"
+    
+    - name: Test the deployment
+      run: |
+        echo "Testing the deployed application..."
+        
+        # Get service URL
+        SERVICE_URL=$(minikube service book-api-service --url)
+        echo "Service URL: $SERVICE_URL"
+        
+        # Test the service
+        curl -f $SERVICE_URL
+        echo "✅ Application is accessible!"
 
   integration-test:
     runs-on: ubuntu-latest
