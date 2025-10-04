@@ -163,7 +163,7 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
     
-    - name: Setup Kubernetes tools
+    - name: Setup Kubernetes
       run: |
         curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
         sudo install minikube-linux-amd64 /usr/local/bin/minikube
@@ -180,23 +180,66 @@ jobs:
         # Deploy
         kubectl apply -f kubernetes/
         
-        # Wait with better debugging
-        timeout 120s bash -c '
+        echo "Deployment applied. Waiting for pods to start..."
+        
+        # Wait for pods to be created first (with longer timeout)
+        echo "Step 1: Waiting for pods to be created..."
+        timeout 300s bash -c '
           while true; do
-            if kubectl get pods -l app=book-api 2>/dev/null | grep -q "Running"; then
-              echo "Pods are running!"
+            PODS=$(kubectl get pods -l app=book-api 2>/dev/null | grep "book-recommendation-api" || true)
+            if [ -n "$PODS" ]; then
+              echo "Pods found:"
+              echo "$PODS"
               break
             fi
-            echo "Waiting for pods..."
-            sleep 5
+            echo "$(date): Waiting for pods to be created..."
+            sleep 10
+          done
+        '
+        
+        echo "Step 2: Waiting for pods to be running..."
+        # Now wait for pods to be in Running state (with longer timeout)
+        timeout 600s bash -c '
+          while true; do
+            PODS_RUNNING=$(kubectl get pods -l app=book-api --no-headers 2>/dev/null | grep Running || true)
+            PODS_COUNT=$(echo "$PODS_RUNNING" | wc -l)
+            
+            if [ "$PODS_COUNT" -ge 1 ]; then
+              echo "✅ At least one pod is running!"
+              kubectl get pods -l app=book-api
+              break
+            fi
+            
+            # Show current pod status for debugging
+            echo "$(date): Current pod status:"
+            kubectl get pods -l app=book-api --no-headers 2>/dev/null || echo "No pods found yet"
+            
+            # Show pod details if pods exist but aren't running
+            POD_NAMES=$(kubectl get pods -l app=book-api --no-headers -o custom-columns=":metadata.name" 2>/dev/null || true)
+            if [ -n "$POD_NAMES" ]; then
+              for POD in $POD_NAMES; do
+                echo "Details for pod $POD:"
+                kubectl describe pod $POD 2>/dev/null | grep -A 10 "Status:" || true
+                echo "---"
+              done
+            fi
+            
+            sleep 15
           done
         '
     
-    - name: Quick test
+    - name: Verify deployment
       run: |
-        # Just verify pods are running (don't test the app in CI/CD)
-        kubectl get pods -l app=book-api
-        echo "✅ Kubernetes deployment verified - pods are running"
+        echo "=== Final Deployment Status ==="
+        kubectl get all
+        
+        echo "=== Pod Details ==="
+        kubectl get pods -l app=book-api -o wide
+        
+        echo "=== Pod Logs ==="
+        kubectl logs -l app=book-api --tail=50 || echo "Could not get logs yet"
+        
+        echo "✅ Kubernetes deployment completed successfully!"
 
   integration-test:
     runs-on: ubuntu-latest

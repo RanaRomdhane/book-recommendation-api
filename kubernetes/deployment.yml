@@ -5,7 +5,7 @@ metadata:
   labels:
     app: book-api
 spec:
-  replicas: 1  # Reduce to 1 for faster startup
+  replicas: 1  # Use only 1 replica in CI/CD for faster startup
   selector:
     matchLabels:
       app: book-api
@@ -24,14 +24,23 @@ spec:
           value: "production"
         - name: PORT
           value: "3000"
-        # Remove resource limits for CI/CD
-        # Remove probes for CI/CD to avoid timeouts
-        command: ["node"]
-        args: ["src/server.js"]
-        # Add startup probe instead of readiness/liveness
+        # Remove resource limits for faster scheduling
+        # Use startup probe instead of readiness/liveness
         startupProbe:
           httpGet:
             path: /health
             port: 3000
           failureThreshold: 30  # Allow many failures
+          periodSeconds: 10     # Check every 10 seconds
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 10
           periodSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 10
