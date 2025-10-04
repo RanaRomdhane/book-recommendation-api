@@ -68,8 +68,16 @@ jobs:
         trivy fs . --exit-code 0 --format sarif --output trivy-fs-results.sarif || echo "Scan completed with findings"
     
     - name: Upload Trivy filesystem scan results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: trivy-fs-sarif-results
+        path: trivy-fs-results.sarif
+        retention-days: 7
+    
+    - name: Upload to Code Scanning (Main Branch Only)
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
       uses: github/codeql-action/upload-sarif@v3
-      if: always() && github.event_name == 'push'
       with:
         sarif_file: 'trivy-fs-results.sarif'
         wait-for-processing: false
@@ -79,8 +87,9 @@ jobs:
     needs: [test, security-scan]
     if: github.ref == 'refs/heads/main'
     permissions:
-      packages: write
+      security-events: write
       contents: read
+      packages: write
     
     steps:
     - name: Checkout code
@@ -112,9 +121,17 @@ jobs:
         echo "Scanning Docker image for vulnerabilities..."
         trivy image ${{ env.IMAGE_NAME }}:latest --exit-code 0 --format sarif --output trivy-image-results.sarif || echo "Scan completed with findings"
     
-    - name: Upload Trivy image scan results
+    - name: Upload Trivy image scan results as artifact
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: trivy-image-sarif-results
+        path: trivy-image-results.sarif
+        retention-days: 7
+    
+    - name: Upload image scan to Code Scanning
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
       uses: github/codeql-action/upload-sarif@v3
-      if: always() && github.event_name == 'push'
       with:
         sarif_file: 'trivy-image-results.sarif'
         wait-for-processing: false
