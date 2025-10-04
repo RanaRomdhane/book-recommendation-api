@@ -38,8 +38,9 @@ npm run dev
 ```bash
 docker build -t book-recommendation-api .
 docker run -p 3000:3000 book-recommendation-api
-Docker Compose
+
 ```
+### Docker Compose
 ```bash
 docker-compose up
 ```
@@ -100,6 +101,7 @@ tests/
 ├── app.test.js     # Test cases
 kubernetes/
 ├── deployment.yml  # K8s deployment
+├── ci-deployment.yml
 ├── service.yml     # K8s service
 ├── hpa.yml         # Auto-scaling
 .github/workflows/
@@ -131,6 +133,9 @@ docker push ranaromdhane/book-recommendation-api
 
 # Deploy to Kubernetes
 kubectl apply -f kubernetes/
+kubectl get pods -w
+kubectl get all
+minikube service book-api-service --url
 ```
 ## 📊 Monitoring
 ### Metrics
