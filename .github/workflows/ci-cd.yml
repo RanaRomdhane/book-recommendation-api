@@ -180,66 +180,31 @@ jobs:
         # Deploy
         kubectl apply -f kubernetes/
         
-        echo "Deployment applied. Waiting for pods to start..."
+        echo "Deployment applied. Waiting up to 10 minutes for pods..."
         
-        # Wait for pods to be created first (with longer timeout)
-        echo "Step 1: Waiting for pods to be created..."
-        timeout 300s bash -c '
-          while true; do
-            PODS=$(kubectl get pods -l app=book-api 2>/dev/null | grep "book-recommendation-api" || true)
-            if [ -n "$PODS" ]; then
-              echo "Pods found:"
-              echo "$PODS"
-              break
-            fi
-            echo "$(date): Waiting for pods to be created..."
-            sleep 10
-          done
-        '
-        
-        echo "Step 2: Waiting for pods to be running..."
-        # Now wait for pods to be in Running state (with longer timeout)
+        # Simple wait with timeout
         timeout 600s bash -c '
           while true; do
-            PODS_RUNNING=$(kubectl get pods -l app=book-api --no-headers 2>/dev/null | grep Running || true)
-            PODS_COUNT=$(echo "$PODS_RUNNING" | wc -l)
+            PODS_READY=$(kubectl get pods -l app=book-api -o jsonpath="{.items[*].status.conditions[?(@.type==\"Ready\")].status}" 2>/dev/null | grep -o "True" | wc -l)
+            PODS_TOTAL=$(kubectl get pods -l app=book-api --no-headers 2>/dev/null | wc -l)
             
-            if [ "$PODS_COUNT" -ge 1 ]; then
-              echo "✅ At least one pod is running!"
+            if [ "$PODS_READY" -eq "$PODS_TOTAL" ] && [ "$PODS_TOTAL" -gt 0 ]; then
+              echo "✅ All pods are ready!"
               kubectl get pods -l app=book-api
               break
             fi
             
-            # Show current pod status for debugging
-            echo "$(date): Current pod status:"
-            kubectl get pods -l app=book-api --no-headers 2>/dev/null || echo "No pods found yet"
-            
-            # Show pod details if pods exist but aren't running
-            POD_NAMES=$(kubectl get pods -l app=book-api --no-headers -o custom-columns=":metadata.name" 2>/dev/null || true)
-            if [ -n "$POD_NAMES" ]; then
-              for POD in $POD_NAMES; do
-                echo "Details for pod $POD:"
-                kubectl describe pod $POD 2>/dev/null | grep -A 10 "Status:" || true
-                echo "---"
-              done
-            fi
-            
-            sleep 15
+            echo "$(date): Ready: $PODS_READY/$PODS_TOTAL pods"
+            sleep 10
           done
         '
     
-    - name: Verify deployment
+    - name: Show deployment status
       run: |
         echo "=== Final Deployment Status ==="
         kubectl get all
-        
         echo "=== Pod Details ==="
-        kubectl get pods -l app=book-api -o wide
-        
-        echo "=== Pod Logs ==="
-        kubectl logs -l app=book-api --tail=50 || echo "Could not get logs yet"
-        
-        echo "✅ Kubernetes deployment completed successfully!"
+        kubectl get pods -o wide
 
   integration-test:
     runs-on: ubuntu-latest
