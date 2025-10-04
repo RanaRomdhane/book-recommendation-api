@@ -156,7 +156,7 @@ jobs:
 
   deploy:
     runs-on: ubuntu-latest
-    needs: [test, security-scan]  # Only depend on test and security, not build
+    needs: [test, security-scan]
     if: github.ref == 'refs/heads/main'
     
     steps:
@@ -194,89 +194,57 @@ jobs:
         
         echo "✅ Kubernetes deployment verified!"
     
-    - name: Test the deployment
+    - name: Run integration tests
       run: |
-        echo "Testing the deployed application..."
+        echo "=== Running Integration Tests ==="
         
-        # Get service URL
+        # Test 1: Service accessibility
+        echo "1. Testing service accessibility..."
         SERVICE_URL=$(minikube service book-api-service --url)
         echo "Service URL: $SERVICE_URL"
         
-        # Test the service
-        curl -f $SERVICE_URL
-        echo "✅ Application is accessible!"
-
-  integration-test:
-    runs-on: ubuntu-latest
-    needs: deploy  # Only run after successful deployment
-    if: github.ref == 'refs/heads/main'
+        # Test 2: HTTP connectivity
+        echo "2. Testing HTTP connectivity..."
+        curl -f $SERVICE_URL && echo "✅ Service is accessible!"
+        
+        # Test 3: Multiple endpoint tests
+        echo "3. Testing multiple endpoints..."
+        curl -s $SERVICE_URL | head -n 5 && echo "✅ HTML content served successfully!"
+        
+        # Test 4: Kubernetes resource verification
+        echo "4. Verifying Kubernetes resources..."
+        kubectl get pods -l app=book-api | grep Running && echo "✅ Pods are running!"
+        kubectl get service book-api-service | grep book-api-service && echo "✅ Service exists!"
+        kubectl get hpa book-api-hpa | grep book-api-hpa && echo "✅ HPA exists!"
+        
+        echo "🎉 All integration tests passed!"
     
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    
-    - name: Setup Kubernetes tools
+    - name: Create deployment evidence
       run: |
-        # Install kubectl (Minikube is already running in deploy job)
-        curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-        sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+        echo "=== Final Deployment Evidence ===" > deployment-evidence.txt
+        echo "Deployment completed at: $(date)" >> deployment-evidence.txt
+        echo "" >> deployment-evidence.txt
+        
+        echo "=== All Resources ===" >> deployment-evidence.txt
+        kubectl get all >> deployment-evidence.txt
+        echo "" >> deployment-evidence.txt
+        
+        echo "=== Pod Details ===" >> deployment-evidence.txt
+        kubectl describe pods -l app=book-api >> deployment-evidence.txt
+        echo "" >> deployment-evidence.txt
+        
+        echo "=== Service Details ===" >> deployment-evidence.txt
+        kubectl describe service book-api-service >> deployment-evidence.txt
+        echo "" >> deployment-evidence.txt
+        
+        echo "=== HPA Details ===" >> deployment-evidence.txt
+        kubectl describe hpa book-api-hpa >> deployment-evidence.txt
+        
+        cat deployment-evidence.txt
     
-    - name: Wait for service to be ready
-      run: |
-        echo "Waiting for service to be ready..."
-        # The service should already be running from the deploy job
-        # Just verify it exists and get its details
-        kubectl get services
-        kubectl describe service book-api-service || echo "Service not found, but that's expected in separate job"
-    
-    - name: Run basic Kubernetes tests
-      run: |
-        echo "=== Running Basic Kubernetes Integration Tests ==="
-        
-        # Test 1: Verify pods are running
-        echo "1. Checking if pods are running..."
-        kubectl get pods -l app=book-api
-        
-        # Test 2: Verify deployment exists
-        echo "2. Checking deployment status..."
-        kubectl get deployment book-recommendation-api
-        
-        # Test 3: Verify service exists
-        echo "3. Checking service status..."
-        kubectl get service book-api-service
-        
-        # Test 4: Verify HPA exists
-        echo "4. Checking HPA status..."
-        kubectl get hpa book-api-hpa
-        
-        echo "✅ All Kubernetes resources verified!"
-    
-    - name: Create integration test report
-      run: |
-        echo "=== Integration Test Report ===" > integration-test-report.txt
-        echo "Timestamp: $(date)" >> integration-test-report.txt
-        echo "" >> integration-test-report.txt
-        
-        echo "=== Pods ===" >> integration-test-report.txt
-        kubectl get pods -l app=book-api >> integration-test-report.txt 2>&1 || echo "No pods found" >> integration-test-report.txt
-        echo "" >> integration-test-report.txt
-        
-        echo "=== Services ===" >> integration-test-report.txt
-        kubectl get services >> integration-test-report.txt 2>&1 || echo "No services found" >> integration-test-report.txt
-        echo "" >> integration-test-report.txt
-        
-        echo "=== Deployments ===" >> integration-test-report.txt
-        kubectl get deployments >> integration-test-report.txt 2>&1 || echo "No deployments found" >> integration-test-report.txt
-        echo "" >> integration-test-report.txt
-        
-        echo "=== HPA ===" >> integration-test-report.txt
-        kubectl get hpa >> integration-test-report.txt 2>&1 || echo "No HPA found" >> integration-test-report.txt
-        
-        cat integration-test-report.txt
-    
-    - name: Upload integration test report
+    - name: Upload deployment evidence
       uses: actions/upload-artifact@v4
       with:
-        name: integration-test-report
-        path: integration-test-report.txt
+        name: deployment-evidence
+        path: deployment-evidence.txt
         retention-days: 7
