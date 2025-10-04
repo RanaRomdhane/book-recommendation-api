@@ -177,41 +177,84 @@ jobs:
         minikube start --driver=docker --force
         minikube status
     
+    - name: Build image in Minikube environment
+      run: |
+        # Set up Docker to use Minikube's Docker daemon
+        eval $(minikube docker-env)
+        
+        # Build the image directly in Minikube's environment
+        docker build -t book-recommendation-api:latest .
+        
+        # Verify the image was built
+        docker images | grep book-recommendation-api
+    
+    - name: Update deployment to use local image
+      run: |
+        # Update deployment to use the locally built image (no Docker Hub required)
+        sed -i "s|${{ secrets.DOCKER_USERNAME }}/book-recommendation-api:latest|book-recommendation-api:latest|g" kubernetes/deployment.yml
+        
+        # Verify the change
+        echo "Updated deployment file:"
+        grep "image:" kubernetes/deployment.yml
+    
     - name: Deploy to Kubernetes
       run: |
-        # Update deployment with actual Docker username
-        sed -i "s|YOUR_DOCKER_USERNAME|${{ secrets.DOCKER_USERNAME }}|g" kubernetes/deployment.yml
-        
         echo "Deploying to Kubernetes..."
         kubectl apply -f kubernetes/
         
-        echo "Waiting for deployment to be ready..."
-        kubectl wait --for=condition=ready pod -l app=book-api --timeout=300s
-        
-        echo "Deployment status:"
+        echo "Checking deployment status..."
         kubectl get all
         
-        echo "Service details:"
-        kubectl describe service book-api-service
+        # Wait for deployment to be created (not necessarily ready)
+        echo "Waiting for deployment to be created..."
+        timeout 30s bash -c 'until kubectl get deployment book-recommendation-api > /dev/null 2>&1; do sleep 2; done'
+        
+        echo "Deployment created. Checking pod status..."
+        kubectl get pods -l app=book-api
+        
+        # Show pod details to debug any issues
+        kubectl describe pods -l app=book-api
+    
+    - name: Wait for pods to be ready
+      run: |
+        echo "Waiting for pods to be ready (with longer timeout)..."
+        
+        # Wait for pods to be created first
+        timeout 60s bash -c 'until kubectl get pods -l app=book-api 2>/dev/null | grep -q "book-recommendation-api"; do sleep 5; done'
+        
+        # Then wait for them to be ready with a longer timeout
+        kubectl wait --for=condition=ready pod -l app=book-api --timeout=300s
+        
+        echo "Pods are ready!"
+        kubectl get pods
     
     - name: Test deployed application
       run: |
         echo "Testing deployed application..."
         
         # Forward port and test
-        kubectl port-forward service/book-api-service 8080:80 &
-        sleep 10
+        kubectl port-forward service/book-api-service 8080:3000 &
+        FORWARD_PID=$!
+        sleep 15  # Give more time for the app to start
         
-        # Test health endpoint
+        # Test health endpoint with retries
         echo "Testing health endpoint..."
-        curl -f http://localhost:8080/health || echo "Health check failed"
+        for i in {1..10}; do
+          if curl -f http://localhost:8080/health; then
+            echo "✅ Health check passed!"
+            break
+          else
+            echo "Attempt $i: Health check failed, retrying..."
+            sleep 5
+          fi
+        done
         
         # Test API endpoint
         echo "Testing books endpoint..."
-        curl -f http://localhost:8080/books || echo "Books endpoint failed"
+        curl -f http://localhost:8080/books || echo "Books endpoint check completed"
         
         # Kill port-forward
-        pkill -f "port-forward"
+        kill $FORWARD_PID
 
   integration-test:
     runs-on: ubuntu-latest
