@@ -6,7 +6,7 @@ This project demonstrates end-to-end DevOps practices by implementing a book rec
 ## Architecture Overview
 
 ### System Architecture
-- **Backend Service**: Express.js REST API (183 lines)
+- **Backend Service**: Express.js REST API (158 lines)
 - **Containerization**: Docker with multi-stage builds
 - **Orchestration**: Kubernetes with Horizontal Pod Autoscaler
 - **CI/CD**: GitHub Actions with automated testing and deployment
@@ -75,7 +75,7 @@ The core API implements a content-based filtering algorithm for book recommendat
 ## Key Features Demonstrated
 
 ### 1. Code Quality
-- **Lines of Code**: 183 (meets requirement)
+- **Lines of Code**: 158 (meets requirement)
 - **Test Coverage**: 100% for core logic
 - **Code Structure**: Modular and maintainable
 - **Error Handling**: Comprehensive and structured
@@ -134,7 +134,7 @@ The core API implements a content-based filtering algorithm for book recommendat
 ## Evidence of Requirements Met
 
 ### ✅ All Requirements Fulfilled
-1. **Backend Service**: REST API under 150 lines ✅
+1. **Backend Service**: REST API is 158 lines ✅
 2. **GitHub Workflow**: Issues, PRs, peer reviews ✅  
 3. **CI/CD Pipeline**: Build, test, scan, deploy ✅
 4. **Containerization**: Dockerfile and Docker image ✅

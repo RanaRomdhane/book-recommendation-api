@@ -117,13 +117,13 @@ npm run test:watch
 ### CI/CD Pipeline
 The GitHub Actions pipeline automatically:
 
-Runs tests on every PR
+- Runs tests on every PR
 
-Builds Docker image on main branch
+- Builds Docker image on main branch
 
-Runs security scans (SAST)
+- Runs security scans (SAST)
 
-Deploys to Kubernetes
+- Deploys to Kubernetes
 
 ### Manual Deployment
 ```bash
@@ -154,35 +154,37 @@ Access application metrics at /metrics endpoint:
 ```
 
 ### Logs
-Structured JSON logs are written to logs/combined.log and stdout.
+- Structured JSON logs are written to logs/combined.log and stdout.
 
 ### Tracing
-Each request receives a unique trace ID for correlation.
+- Each request receives a unique trace ID for correlation.
 
 ## 🔒 Security
 Security Features
-SAST: Trivy static analysis in CI/CD
+- **SAST**: Trivy static analysis in CI/CD
 
-DAST: Runtime security scanning
+- **DAST**: Runtime security scanning
 
-Rate Limiting: 100 requests per 15 minutes
+- **Rate Limiting**: 100 requests per 15 minutes
 
-Security Headers: Helmet.js configuration
+- **Security Headers**: Helmet.js configuration
 
-Dependency Scanning: npm audit integration
+- **Dependency Scanning**: npm audit integration
 
 ### Security Scanning
 ``` bash
 ./security/scan.bat
 ```
 ## 🤝 Contributing
-Create a feature branch: git checkout -b feature/amazing-feature
 
-Commit changes: git commit -m 'Add amazing feature'
+- Create a feature branch: git checkout -b feature/amazing-feature
 
-Push branch: git push origin feature/amazing-feature
+- Commit changes: git commit -m 'Add amazing feature'
 
-Open a Pull Request
+- Push branch: git push origin feature/amazing-feature
+
+- Open a Pull Request
 
 ## 📄 License
+
 This project is licensed under the MIT License.
