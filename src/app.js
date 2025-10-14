@@ -11,7 +11,9 @@ const PORT = process.env.PORT || 3000;
 app.use(helmet());
 app.use(cors());
 app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 100 }));
-app.use(express.json());
+app.use(express.json({
+  verify: (req, res, buf) => { req.rawBody = buf.toString(); }
+}));
 
 // Logger simplifié
 const log = (level, msg, data = {}) => 
@@ -44,6 +46,19 @@ app.use((req, res, next) => {
     log('info', 'Response', { traceId: req.traceId, status: res.statusCode, duration });
   });
   next();
+});
+
+// Gestionnaire d'erreur JSON invalide
+app.use((err, req, res, next) => {
+  if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
+    log('error', 'Invalid JSON in request body', { traceId: req.traceId, error: err.message });
+    return res.status(400).json({
+      success: false,
+      error: 'Invalid JSON in request body',
+      message: 'The request contains malformed JSON'
+    });
+  }
+  next(err);
 });
 
 // Page d'accueil
@@ -158,7 +173,7 @@ app.post('/recommendations', (req, res) => {
 
 // Error handlers
 app.use((err, req, res, next) => {
-  log('error', 'Error', { traceId: req.traceId, error: err.message });
+  log('error', 'Error', { error: err.message });
   res.status(500).json({ success: false, error: 'Internal server error', traceId: req.traceId });
 });
 
