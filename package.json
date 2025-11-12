@@ -16,7 +16,12 @@
       "helmet": "^7.0.0",
       "express-rate-limit": "^6.8.1",
       "winston": "^3.10.0",
-      "uuid": "^9.0.0"
+      "uuid": "^9.0.0",
+      "body-parser": "^1.20.2",
+      "prom-client": "^14.0.0",
+      "@opentelemetry/sdk-node": "^0.38.0",
+      "@opentelemetry/exporter-jaeger": "^0.38.0",
+      "@opentelemetry/auto-instrumentations-node": "^0.38.0"
     },
     "devDependencies": {
       "jest": "^29.6.1",
