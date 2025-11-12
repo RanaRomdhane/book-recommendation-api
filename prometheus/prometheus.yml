@@ -1,0 +1,12 @@
+# prometheus/prometheus.yml
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: 'book-recommendation-api'
+    static_configs:
+      - targets: ['book-app:3000']
+
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['prometheus:9090']
