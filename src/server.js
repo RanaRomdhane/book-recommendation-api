@@ -1,7 +1,7 @@
 'use strict';
 
 // Initialize tracing before loading the app (auto-instrumentations)
-require('./tracing');
+require('./src/tracing');
 
 const app = require('./app');
 

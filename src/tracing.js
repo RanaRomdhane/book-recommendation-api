@@ -1,46 +1,32 @@
-// Initialize OpenTelemetry SDK for Node.js and export to Jaeger.
-// Import this before application code (require it at top of server entrypoint).
-
+// src/tracing.js
 'use strict';
-
-const { NodeSDK } = require('@opentelemetry/sdk-node');
+const opentelemetry = require('@opentelemetry/api');
+const { NodeTracerProvider } = require('@opentelemetry/sdk-trace-node');
 const { JaegerExporter } = require('@opentelemetry/exporter-jaeger');
-const { getNodeAutoInstrumentations } = require('@opentelemetry/auto-instrumentations-node');
+const { Resource } = require('@opentelemetry/resources');
+const { SemanticResourceAttributes } = require('@opentelemetry/semantic-conventions');
+const { SimpleSpanProcessor, BatchSpanProcessor } = require('@opentelemetry/sdk-trace-base');
 
-const JAEGER_HOST = process.env.JAEGER_HOST || 'localhost';
-const JAEGER_PORT = process.env.JAEGER_PORT ? Number(process.env.JAEGER_PORT) : 6832;
-
-// Use Jaeger agent by default (UDP thrift). For collector use exporter endpoint.
-const jaegerExporter = new JaegerExporter({
-  host: JAEGER_HOST,
-  port: JAEGER_PORT,
+// Define service metadata
+const resource = new Resource({
+  [SemanticResourceAttributes.SERVICE_NAME]: 'book-recommendation-api',
+  [SemanticResourceAttributes.SERVICE_VERSION]: '1.0.0',
 });
 
-const sdk = new NodeSDK({
-  traceExporter: jaegerExporter,
-  instrumentations: [getNodeAutoInstrumentations()],
-  // optional: service name can be set via OTEL_RESOURCE_ATTRIBUTES or here.
+// Initialize tracer
+const provider = new NodeTracerProvider({ resource });
+
+// Configure Jaeger exporter
+const exporter = new JaegerExporter({
+  endpoint: 'http://localhost:14268/api/traces', // Jaeger collector endpoint
 });
 
-sdk.start()
-  .then(() => {
-    // Tracing started
-    // console.log('OpenTelemetry SDK started');
-  })
-  .catch((err) => {
-    console.error('Error starting OpenTelemetry SDK', err);
-  });
+// Use batch processor for performance
+provider.addSpanProcessor(new BatchSpanProcessor(exporter));
+provider.register();
 
-// Ensure graceful shutdown of SDK on process termination
-const shutdownSdk = async () => {
-  try {
-    await sdk.shutdown();
-  } catch (err) {
-    console.error('Error shutting down OpenTelemetry SDK', err);
-  } finally {
-    // do not exit here; server will manage exit
-  }
-};
+// Export tracer for use in the app
+const tracer = opentelemetry.trace.getTracer('book-recommendation-tracer');
+module.exports = tracer;
 
-process.on('SIGTERM', shutdownSdk);
-process.on('SIGINT', shutdownSdk);
+console.log('✅ OpenTelemetry tracing initialized and exporting to Jaeger');
