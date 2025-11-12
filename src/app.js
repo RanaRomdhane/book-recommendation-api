@@ -3,17 +3,69 @@ const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const { v4: uuidv4 } = require('uuid');
+const client = require('prom-client');
+
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Prometheus metrics setup
+const collectDefaultMetrics = client.collectDefaultMetrics;
+collectDefaultMetrics({ 
+  prefix: 'book_api_',
+  timeout: 5000 
+});
+
+// Custom metrics
+const httpRequestDurationMicroseconds = new client.Histogram({
+  name: 'book_api_http_request_duration_ms',
+  help: 'Duration of HTTP requests in ms',
+  labelNames: ['method', 'route', 'status_code'],
+  buckets: [50, 100, 200, 500, 1000, 2000, 5000]
+});
+
+const httpRequestsTotal = new client.Counter({
+  name: 'book_api_http_requests_total',
+  help: 'Total number of HTTP requests',
+  labelNames: ['method', 'route', 'status_code']
+});
+
+const booksCounter = new client.Counter({
+  name: 'book_api_books_requested_total',
+  help: 'Total number of books requested',
+  labelNames: ['endpoint']
+});
+
+const recommendationsCounter = new client.Counter({
+  name: 'book_api_recommendations_total',
+  help: 'Total number of recommendations generated',
+  labelNames: ['genre_count']
+});
+
+const recommendationDuration = new client.Histogram({
+  name: 'book_api_recommendation_duration_ms',
+  help: 'Duration of recommendation generation in ms',
+  buckets: [10, 50, 100, 200, 500]
+});
+
 // Middleware
 app.use(helmet());
 app.use(cors());
-app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 100 }));
+app.use(rateLimit({ 
+  windowMs: 15 * 60 * 1000, 
+  max: 100,
+  message: {
+    success: false,
+    error: 'Too many requests',
+    message: 'Rate limit exceeded. Please try again later.'
+  }
+}));
 app.use(express.json({
   verify: (req, res, buf) => { req.rawBody = buf.toString(); }
 }));
+
 const log = (level, msg, data = {}) => 
   console.log(JSON.stringify({ level, msg, ...data, time: new Date().toISOString() }));
+
 // Données
 const books = [
   { id: 1, title: 'The Great Gatsby', author: 'F. Scott Fitzgerald', genre: 'classic', pages: 180, rating: 4.5 },
@@ -27,29 +79,68 @@ const books = [
   { id: 9, title: 'The Martian', author: 'Andy Weir', genre: 'sci-fi', pages: 369, rating: 4.4 },
   { id: 10, title: 'The Name of the Wind', author: 'Patrick Rothfuss', genre: 'fantasy', pages: 662, rating: 4.8 }
 ];
+
+// Legacy metrics for backward compatibility
 const metrics = { count: 0, start: Date.now(), times: [] };
+
+// Enhanced request logging with metrics
 app.use((req, res, next) => {
   req.traceId = uuidv4();
   const start = Date.now();
-  log('info', 'Request', { traceId: req.traceId, method: req.method, url: req.url });
+  
+  log('info', 'Request started', { 
+    traceId: req.traceId, 
+    method: req.method, 
+    url: req.url,
+    userAgent: req.get('User-Agent')
+  });
+  
   res.on('finish', () => {
     const duration = Date.now() - start;
+    
+    // Track legacy metrics
     metrics.times.push(duration);
-    log('info', 'Response', { traceId: req.traceId, status: res.statusCode, duration });
+    metrics.count++;
+    
+    // Track Prometheus metrics
+    const route = req.route?.path || req.path;
+    httpRequestDurationMicroseconds
+      .labels(req.method, route, res.statusCode)
+      .observe(duration);
+    
+    httpRequestsTotal
+      .labels(req.method, route, res.statusCode)
+      .inc();
+    
+    log('info', 'Request completed', { 
+      traceId: req.traceId, 
+      method: req.method, 
+      url: req.url, 
+      status: res.statusCode, 
+      duration 
+    });
   });
+  
   next();
 });
+
 app.use((err, req, res, next) => {
   if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
-    log('error', 'Invalid JSON in request body', { traceId: req.traceId, error: err.message });
+    log('error', 'Invalid JSON in request body', { 
+      traceId: req.traceId, 
+      error: err.message,
+      rawBody: req.rawBody?.substring(0, 200) // Log first 200 chars for debugging
+    });
     return res.status(400).json({
       success: false,
       error: 'Invalid JSON in request body',
-      message: 'The request contains malformed JSON'
+      message: 'The request contains malformed JSON',
+      traceId: req.traceId
     });
   }
   next(err);
 });
+
 app.get('/', (req, res) => {
   res.send(`
     <!DOCTYPE html>
@@ -67,6 +158,7 @@ app.get('/', (req, res) => {
         .post { background: #007bff; }
         code { background: #e9ecef; padding: 2px 6px; border-radius: 3px; }
         .stats { background: #fff3cd; padding: 15px; border-radius: 5px; margin: 20px 0; }
+        .observability { background: #d1ecf1; padding: 15px; border-radius: 5px; margin: 20px 0; }
       </style>
     </head>
     <body>
@@ -74,8 +166,17 @@ app.get('/', (req, res) => {
       <div class="stats">
         <strong>Statut:</strong> ✅ Opérationnel<br>
         <strong>Total de livres:</strong> ${books.length}<br>
-        <strong>Port:</strong> ${PORT}
+        <strong>Port:</strong> ${PORT}<br>
+        <strong>Requêtes totales:</strong> ${metrics.count}
       </div>
+      
+      <div class="observability">
+        <h3>🔍 Observability</h3>
+        <strong>Prometheus Metrics:</strong> <a href="/metrics">/metrics</a><br>
+        <strong>Health Check:</strong> <a href="/health">/health</a><br>
+        <strong>OpenTelemetry:</strong> Active avec tracing distribué
+      </div>
+      
       <h2>Endpoints disponibles</h2>
       <div class="endpoint">
         <span class="method get">GET</span> <code>/health</code>
@@ -83,7 +184,7 @@ app.get('/', (req, res) => {
       </div>
       <div class="endpoint">
         <span class="method get">GET</span> <code>/metrics</code>
-        <p>Obtenir les métriques de performance</p>
+        <p>Obtenir les métriques Prometheus</p>
       </div>
       <div class="endpoint">
         <span class="method get">GET</span> <code>/books</code>
@@ -107,52 +208,248 @@ app.get('/', (req, res) => {
     </html>
   `);
 });
+
 app.get('/health', (req, res) => {
-  res.json({ status: 'OK', timestamp: new Date().toISOString(), uptime: process.uptime() });
+  const healthCheck = {
+    status: 'OK',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    memory: process.memoryUsage(),
+    version: process.env.npm_package_version || '1.0.0'
+  };
+  
+  res.json(healthCheck);
 });
-app.get('/metrics', (req, res) => {
+
+// Enhanced metrics endpoint with both legacy and Prometheus metrics
+app.get('/metrics', async (req, res) => {
+  try {
+    // Return Prometheus metrics format
+    res.set('Content-Type', client.register.contentType);
+    const metrics = await client.register.metrics();
+    res.end(metrics);
+  } catch (error) {
+    log('error', 'Failed to collect metrics', { error: error.message });
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to collect metrics',
+      traceId: req.traceId 
+    });
+  }
+});
+
+// Legacy metrics endpoint for backward compatibility
+app.get('/legacy-metrics', (req, res) => {
   const avg = metrics.times.length ? metrics.times.reduce((a, b) => a + b, 0) / metrics.times.length : 0;
   res.json({
-    requests: { total: metrics.count, avgResponseTime: avg.toFixed(2) },
-    books: { total: books.length }
+    requests: { 
+      total: metrics.count, 
+      avgResponseTime: avg.toFixed(2),
+      uptime: Math.floor(process.uptime())
+    },
+    books: { total: books.length },
+    memory: process.memoryUsage()
   });
 });
+
 app.get('/books', (req, res) => {
-  metrics.count++;
-  res.json({ success: true, data: books, count: books.length });
+  booksCounter.labels('all_books').inc();
+  
+  log('info', 'Books list requested', { 
+    traceId: req.traceId,
+    bookCount: books.length
+  });
+  
+  res.json({ 
+    success: true, 
+    data: books, 
+    count: books.length,
+    traceId: req.traceId 
+  });
 });
+
 app.get('/books/:id', (req, res) => {
-  metrics.count++;
-  const book = books.find(b => b.id === parseInt(req.params.id));
-  if (!book) return res.status(404).json({ success: false, error: 'Book not found' });
-  res.json({ success: true, data: book });
-});
-app.post('/recommendations', (req, res) => {
-  metrics.count++;
-  const { preferredGenres = [], maxPages = 500, minRating = 4.0 } = req.body;
-  let results = books.filter(b => b.rating >= minRating && b.pages <= maxPages);
-  if (preferredGenres.length > 0) {
-    results = results.filter(b => preferredGenres.some(g => b.genre.toLowerCase().includes(g.toLowerCase())));
+  const bookId = parseInt(req.params.id);
+  booksCounter.labels('single_book').inc();
+  
+  const book = books.find(b => b.id === bookId);
+  
+  if (!book) {
+    log('warn', 'Book not found', { 
+      traceId: req.traceId,
+      bookId: bookId
+    });
+    return res.status(404).json({ 
+      success: false, 
+      error: 'Book not found',
+      traceId: req.traceId 
+    });
   }
-  results.sort((a, b) => b.rating - a.rating);
-  log('info', 'Recommendations', { traceId: req.traceId, count: results.length });
-  res.json({ success: true, data: results.slice(0, 5), filters: { preferredGenres, maxPages, minRating } });
+  
+  log('info', 'Book found', { 
+    traceId: req.traceId,
+    bookId: bookId,
+    title: book.title
+  });
+  
+  res.json({ 
+    success: true, 
+    data: book,
+    traceId: req.traceId 
+  });
 });
+
+app.post('/recommendations', (req, res) => {
+  const startTime = Date.now();
+  const { preferredGenres = [], maxPages = 500, minRating = 4.0 } = req.body;
+  
+  log('info', 'Recommendations requested', {
+    traceId: req.traceId,
+    preferredGenres,
+    maxPages,
+    minRating
+  });
+  
+  // Validate input
+  if (!Array.isArray(preferredGenres)) {
+    return res.status(400).json({
+      success: false,
+      error: 'preferredGenres must be an array',
+      traceId: req.traceId
+    });
+  }
+  
+  if (typeof maxPages !== 'number' || maxPages <= 0) {
+    return res.status(400).json({
+      success: false,
+      error: 'maxPages must be a positive number',
+      traceId: req.traceId
+    });
+  }
+  
+  if (typeof minRating !== 'number' || minRating < 0 || minRating > 5) {
+    return res.status(400).json({
+      success: false,
+      error: 'minRating must be a number between 0 and 5',
+      traceId: req.traceId
+    });
+  }
+  
+  try {
+    let results = books.filter(b => b.rating >= minRating && b.pages <= maxPages);
+    
+    if (preferredGenres.length > 0) {
+      results = results.filter(b => 
+        preferredGenres.some(g => 
+          b.genre.toLowerCase().includes(g.toLowerCase())
+        )
+      );
+    }
+    
+    results.sort((a, b) => b.rating - a.rating);
+    const finalResults = results.slice(0, 5);
+    
+    const duration = Date.now() - startTime;
+    
+    // Track metrics
+    recommendationsCounter.labels(preferredGenres.length.toString()).inc();
+    recommendationDuration.observe(duration);
+    
+    log('info', 'Recommendations generated', { 
+      traceId: req.traceId, 
+      count: finalResults.length,
+      duration,
+      filters: { preferredGenres, maxPages, minRating }
+    });
+    
+    res.json({ 
+      success: true, 
+      data: finalResults, 
+      count: finalResults.length,
+      filters: { preferredGenres, maxPages, minRating },
+      traceId: req.traceId 
+    });
+    
+  } catch (error) {
+    log('error', 'Error generating recommendations', {
+      traceId: req.traceId,
+      error: error.message,
+      stack: error.stack
+    });
+    
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error while generating recommendations',
+      traceId: req.traceId
+    });
+  }
+});
+
+// Global error handler
 app.use((err, req, res, next) => {
-  log('error', 'Error', { error: err.message });
-  res.status(500).json({ success: false, error: 'Internal server error', traceId: req.traceId });
+  log('error', 'Unhandled error', { 
+    traceId: req.traceId,
+    error: err.message,
+    stack: err.stack,
+    url: req.url,
+    method: req.method
+  });
+  
+  res.status(500).json({ 
+    success: false, 
+    error: 'Internal server error', 
+    traceId: req.traceId 
+  });
 });
+
+// 404 handler
 app.use('*', (req, res) => {
-  res.status(404).json({ success: false, error: 'Endpoint not found', traceId: req.traceId });
+  log('warn', 'Endpoint not found', {
+    traceId: req.traceId,
+    method: req.method,
+    url: req.originalUrl
+  });
+  
+  res.status(404).json({ 
+    success: false, 
+    error: 'Endpoint not found', 
+    traceId: req.traceId 
+  });
 });
+
 module.exports = app;
+
 if (require.main === module) {
   const server = app.listen(PORT, () => {
-    log('info', `📚 API running on http://localhost:${PORT}`);
+    log('info', `📚 Book Recommendation API running on http://localhost:${PORT}`);
+    log('info', `🔍 Prometheus metrics available at http://localhost:${PORT}/metrics`);
+    log('info', `❤️  Health check available at http://localhost:${PORT}/health`);
     console.log(`📚 Book Recommendation API running on http://localhost:${PORT}`);
+    console.log(`🔍 Prometheus metrics available at http://localhost:${PORT}/metrics`);
+    console.log(`❤️  Health check available at http://localhost:${PORT}/health`);
   });
-  process.on('SIGTERM', () => {
-    console.log('Shutting down gracefully');
-    server.close(() => console.log('Process terminated'));
-  });
+
+  // Graceful shutdown
+  const gracefulShutdown = (signal) => {
+    console.log(`\n${signal} received, shutting down gracefully`);
+    log('info', 'Shutdown signal received', { signal });
+    
+    server.close(() => {
+      log('info', 'HTTP server closed');
+      console.log('HTTP server closed');
+      
+      // Close any other connections or cleanup here
+      process.exit(0);
+    });
+    
+    // Force close after 10 seconds
+    setTimeout(() => {
+      log('error', 'Forced shutdown after timeout');
+      console.error('Could not close connections in time, forcefully shutting down');
+      process.exit(1);
+    }, 10000);
+  };
+
+  process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+  process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 }

@@ -29,6 +29,10 @@ spec:
         # Port 3000 is already the default, but keeping it explicit for clarity
         - name: PORT
           value: "3000"
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: "http://otel-collector:4318"
+        - name: OTEL_SERVICE_NAME
+          value: "book-recommendation-api"
         resources:
           requests:
             memory: "128Mi"

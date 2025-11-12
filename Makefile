@@ -1,4 +1,4 @@
-.PHONY: help install test build run docker-build docker-run docker-push k8s-deploy k8s-delete k8s-logs clean
+.PHONY: help install test build run docker-build docker-run docker-push k8s-deploy k8s-delete k8s-logs clean observability-up observability-down observability-logs
 
 # Default Git commit SHA for image tagging
 GIT_SHA := $(shell git rev-parse --short HEAD)
@@ -90,3 +90,18 @@ security-scan: ## Run security scans
 # Lint
 lint: ## Run linting
 	npm run lint || echo "No lint script configured"
+
+observability-up:
+	docker-compose -f docker-compose.observability.yml up -d
+
+observability-down:
+	docker-compose -f docker-compose.observability.yml down
+
+observability-logs:
+	docker-compose -f docker-compose.observability.yml logs -f
+
+# Access URLs
+observability-urls:
+	@echo "🌐 Grafana: http://localhost:3001 (admin/admin)"
+	@echo "📊 Prometheus: http://localhost:9090"
+	@echo "🔍 Jaeger: http://localhost:16686"
