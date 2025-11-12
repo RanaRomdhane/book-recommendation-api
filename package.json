@@ -8,7 +8,12 @@
     "dev": "nodemon src/server.js",
     "test": "jest --verbose --detectOpenHandles",
     "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage --detectOpenHandles"
+    "test:coverage": "jest --coverage --detectOpenHandles",
+    "observability:up": "docker-compose -f docker-compose.observability.yml up -d",
+    "observability:down": "docker-compose -f docker-compose.observability.yml down",
+    "observability:logs": "docker-compose -f docker-compose.observability.yml logs -f",
+    "observability:status": "docker-compose -f docker-compose.observability.yml ps",
+    "full:start": "npm run observability:up && npm start"
     },
     "dependencies": {
       "express": "^4.18.2",

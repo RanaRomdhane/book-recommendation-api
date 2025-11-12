@@ -5,6 +5,7 @@ A simple REST API that recommends books based on your preferences. Built to demo
 ![CI/CD](https://github.com/RanaRomdhane/book-recommendation-api/actions/workflows/ci-cd.yaml/badge.svg)
 ![Docker](https://img.shields.io/badge/Docker-Ready-blue)
 ![Kubernetes](https://img.shields.io/badge/Kubernetes-Ready-orange)
+![OpenTelemetry](https://img.shields.io/badge/Observability-OpenTelemetry%2520%257C%2520Prometheus%2520%257C%2520Grafana-green)
 
 ## What Does This Do?
 
@@ -14,30 +15,38 @@ This API helps you find books you might like. Tell it what genres you prefer, ho
 
 ## Quick Start
 
-### Option 1: Run Locally (Easiest)
+### Option 1: Run Locally with Full Observability (Recommended)
 
 ```bash
-# Clone the project
+## Clone the project
 git clone https://github.com/RanaRomdhane/book-recommendation-api
 cd book-recommendation-api
 
-# Install and run
+# Install dependencies
 npm install
+
+# Start the observability stack (Docker required)
+npm run observability:up
+
+# Start the API with OpenTelemetry tracing
 npm start
 
-# Test it
-curl http://localhost:3000/health
+# Access the services:
+# 🌐 API: http://localhost:3000
+# 📊 Grafana: http://localhost:3001 (admin/admin)
+# 🔍 Jaeger: http://localhost:16686
+# 📈 Prometheus: http://localhost:9090
 ```
 
-### Option 2: Using Docker
+### Option 2: Using Docker Only
 
 ```bash
-# Build and run
+# Build and run the API
 docker build -t book-api .
 docker run -p 3000:3000 book-api
 
-# Or use docker-compose
-docker-compose up
+# Or use the full observability stack
+docker-compose -f docker-compose.observability.yml up -d
 ```
 
 ### Option 3: Kubernetes (For Learning K8s)
@@ -51,6 +60,16 @@ make k8s-deploy
 
 # Get the URL
 make k8s-url
+```
+
+### Option 4: Windows Users
+
+```bash
+# Start observability stack
+docker-compose -f docker-compose.observability.yml up -d
+
+# Start API with tracing
+node -r ./tracing.js server.js
 ```
 
 ## How to Use the API
@@ -76,9 +95,14 @@ curl -X POST http://localhost:3000/recommendations \
   }'
 ```
 
-### 4. See metrics
+### 4. See Prometheus metrics
 ```bash
 curl http://localhost:3000/metrics
+```
+
+### 5. See legacy JSON metrics
+```bash
+curl http://localhost:3000/legacy-metrics
 ```
 
 ## Architecture
@@ -90,41 +114,82 @@ User Request → Express.js API → Book Filter Algorithm → JSON Response
 ```
 
 **Stack:**
+
 - Node.js + Express.js (Backend)
+
+- OpenTelemetry (Distributed Tracing)
+
+- Prometheus (Metrics Collection)
+
+- Grafana (Visualization & Dashboards)
+
+- Jaeger (Trace Analysis)
+
 - Docker (Containerization)
+
 - Kubernetes (Orchestration)
+
 - GitHub Actions (CI/CD)
+
 - Trivy (Security Scanning)
 
 ## Project Structure
 
 ```
 ├── src/
-│   ├── app.js              # Main API logic
-│   └── server.js           # Server startup
+│   ├── app.js              # Main API logic with Prometheus metrics
+│   ├── server.js           # Server startup
+│   └── tracing.js          # OpenTelemetry configuration
 ├── kubernetes/
 │   ├── deployment.yaml     # K8s deployment config
 │   ├── service.yaml        # K8s service config
 │   └── hpa.yaml           # Auto-scaling config
 ├── .github/workflows/
 │   └── ci-cd.yaml         # Automated pipeline
+├── docker-compose.observability.yml  # Full observability stack
+├── otel-collector-config.yaml        # OpenTelemetry collector
+├── grafana/
+│   └── datasources.yml     # Grafana configuration
 ├── Dockerfile              # Container definition
-├── Makefile               # Common commands
-└── tests/                 # Unit tests
+└── tests/                  # Unit tests
 ```
 
-## Development Commands (using Makefile)
+## Development Commands :
+
+### Using npm scripts (Cross-platform):
 
 ```bash
-make help              # Show all available commands
-make install           # Install dependencies
-make test              # Run tests
-make docker-build      # Build Docker image
-make k8s-deploy        # Deploy to Kubernetes
-make k8s-logs          # View logs
+npm install                  # Install dependencies
+npm start                   # Start API with OpenTelemetry
+npm test                    # Run tests
+npm run test:coverage       # Run tests with coverage
+npm run observability:up    # Start observability stack
+npm run observability:down  # Stop observability stack
+npm run observability:logs  # View observability logs
+npm run full:start          # Start everything
+```
+### Using Docker Compose:
+```bash
+# Start full observability stack
+docker-compose -f docker-compose.observability.yml up -d
+
+# View logs
+docker-compose -f docker-compose.observability.yml logs -f
+
+# Stop everything
+docker-compose -f docker-compose.observability.yml down
 ```
 
 ## What Makes This a DevOps Project?
+
+### ✅ Full Observability Stack
+- OpenTelemetry Tracing: Distributed tracing with Jaeger UI
+
+- Prometheus Metrics: Custom application metrics and system metrics
+
+- Grafana Dashboards: Beautiful visualizations and monitoring
+
+- Structured Logging: JSON logs with trace correlation
 
 ### ✅ Automated Testing
 Every code change runs tests automatically in GitHub Actions.
@@ -137,16 +202,66 @@ Every code change runs tests automatically in GitHub Actions.
 ### ✅ Continuous Deployment
 Push to `main` → Tests run → Image builds → Security scans → Ready to deploy
 
+### ✅ Production-Ready Monitoring
+- Health checks: Know if your service is up
+
+- Performance metrics: Response times, error rates, throughput
+
+- Business metrics: Books requested, recommendations generated
+
+- Distributed tracing: Track requests across services
+
+### ✅ Container Best Practices
+- Specific image versions (no latest tag)
+
+- Non-root user for security
+
+- Health checks built-in
+
+- Optimized layer caching
+
+- Multi-stage builds
+
 ### ✅ Observability
 - **Logs**: Every request is logged with a unique ID for tracking
 - **Metrics**: See how many requests you're getting and response times
 - **Health checks**: Know if your service is up
 
-### ✅ Container Best Practices
-- Specific image versions (no `latest` tag)
-- Non-root user for security
-- Health checks built-in
-- Optimized layer caching
+### Prometheus Metrics
+- HTTP Metrics: Request count, duration, error rates
+
+- Business Metrics: Books requested, recommendations generated
+
+- System Metrics: Memory, CPU, event loop lag
+
+- Custom Metrics: Recommendation duration, genre preferences
+
+### Grafana Dashboards
+- Real-time API performance
+
+- Error rates and trends
+
+- Business metrics visualization
+
+- Alerting capabilities
+
+### 🚦 Access URLs (After Starting Observability)
+Service	URL	Credentials
+- Your API	http://localhost:3000	-
+- Grafana	http://localhost:3001	admin/admin
+- Jaeger	http://localhost:16686	-
+- Prometheus	http://localhost:9090	-
+
+### 📈 Monitoring Your API
+Once running, you can monitor:
+
+- Grafana: View API metrics and create dashboards
+
+- Jaeger: Trace specific requests and identify bottlenecks
+
+- Prometheus: Query raw metrics and set up alerts
+
+- Terminal: View structured JSON logs with trace IDs
 
 ## Why These Choices?
 
@@ -161,10 +276,6 @@ Even for small projects, HPA demonstrates:
 - How Kubernetes handles load automatically
 - Production-ready scaling patterns
 - It's a learning opportunity for K8s features
-
-### Why Both `ci-deployment.yaml` and `deployment.yaml`?
-- `ci-deployment.yaml`: Uses nginx for fast CI testing (lightweight)
-- `deployment.yaml`: Uses your actual API for real deployment
 
 ### Why No Minikube in CI?
 Running full K8s in CI is slow and unnecessary. The CI focuses on:
