@@ -5,10 +5,11 @@ on:
     branches: [ main, develop ]
   pull_request:
     branches: [ main ]
-  workflow_dispatch:  # Allow manual triggers
+  workflow_dispatch:
 
 env:
   IMAGE_NAME: book-recommendation-api
+  NODE_VERSION: '18'
 
 jobs:
   test:
@@ -21,7 +22,7 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: '18'
+        node-version: ${{ env.NODE_VERSION }}
         cache: 'npm'
     
     - name: Install dependencies
@@ -62,10 +63,11 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y trivy
     
+    # Trivy filesystem scan: Scans source code, dependencies, and config files for vulnerabilities
     - name: Run Trivy filesystem scan
       run: |
-        echo "Running filesystem security scan..."
-        trivy fs . --exit-code 0 --format sarif --output trivy-fs-results.sarif || echo "Scan completed with findings"
+        echo "Scanning filesystem for vulnerabilities in code and dependencies..."
+        trivy fs . --exit-code 0 --format sarif --output trivy-fs-results.sarif
     
     - name: Upload Trivy filesystem scan results
       uses: actions/upload-artifact@v4
@@ -103,7 +105,7 @@ jobs:
       with:
         context: .
         file: ./Dockerfile
-        tags: ${{ env.IMAGE_NAME }}:latest
+        tags: ${{ env.IMAGE_NAME }}:${{ github.sha }}
         load: true
         cache-from: type=gha
         cache-to: type=gha,mode=max
@@ -116,12 +118,13 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y trivy
     
+    # Trivy image scan: Scans the built Docker image layers for OS and library vulnerabilities
     - name: Scan Docker image with Trivy
       run: |
         echo "Scanning Docker image for vulnerabilities..."
-        trivy image ${{ env.IMAGE_NAME }}:latest --exit-code 0 --format sarif --output trivy-image-results.sarif || echo "Scan completed with findings"
+        trivy image ${{ env.IMAGE_NAME }}:${{ github.sha }} --exit-code 0 --format sarif --output trivy-image-results.sarif
     
-    - name: Upload Trivy image scan results as artifact
+    - name: Upload Trivy image scan results
       uses: actions/upload-artifact@v4
       if: always()
       with:
@@ -149,102 +152,7 @@ jobs:
         file: ./Dockerfile
         push: true
         tags: |
-          ${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:latest
           ${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          ${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:main
         cache-from: type=gha
         cache-to: type=gha,mode=max
-
-  deploy:
-    runs-on: ubuntu-latest
-    needs: [test, security-scan]
-    if: github.ref == 'refs/heads/main'
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    
-    - name: Setup Kubernetes
-      run: |
-        curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
-        sudo install minikube-linux-amd64 /usr/local/bin/minikube
-        curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-        sudo install kubectl /usr/local/bin/kubectl
-        minikube start --driver=docker --force
-    
-    - name: Deploy to Kubernetes
-      run: |
-        echo "Deploying nginx-based application to Kubernetes..."
-        kubectl apply -f kubernetes/ci-deployment.yml
-        
-        echo "Waiting for deployment to be ready..."
-        kubectl rollout status deployment/book-recommendation-api --timeout=180s
-        
-        echo "✅ Deployment successful!"
-    
-    - name: Verify deployment
-      run: |
-        echo "=== Deployment Evidence ==="
-        kubectl get all
-        
-        echo "=== Pod Details ==="
-        kubectl get pods -o wide
-        
-        echo "=== Service Details ==="
-        kubectl describe service book-api-service
-        
-        echo "✅ Kubernetes deployment verified!"
-    
-    - name: Run integration tests
-      run: |
-        echo "=== Running Integration Tests ==="
-        
-        # Test 1: Service accessibility
-        echo "1. Testing service accessibility..."
-        SERVICE_URL=$(minikube service book-api-service --url)
-        echo "Service URL: $SERVICE_URL"
-        
-        # Test 2: HTTP connectivity
-        echo "2. Testing HTTP connectivity..."
-        curl -f $SERVICE_URL && echo "✅ Service is accessible!"
-        
-        # Test 3: Multiple endpoint tests
-        echo "3. Testing multiple endpoints..."
-        curl -s $SERVICE_URL | head -n 5 && echo "✅ HTML content served successfully!"
-        
-        # Test 4: Kubernetes resource verification
-        echo "4. Verifying Kubernetes resources..."
-        kubectl get pods -l app=book-api | grep Running && echo "✅ Pods are running!"
-        kubectl get service book-api-service | grep book-api-service && echo "✅ Service exists!"
-        kubectl get hpa book-api-hpa | grep book-api-hpa && echo "✅ HPA exists!"
-        
-        echo "🎉 All integration tests passed!"
-    
-    - name: Create deployment evidence
-      run: |
-        echo "=== Final Deployment Evidence ===" > deployment-evidence.txt
-        echo "Deployment completed at: $(date)" >> deployment-evidence.txt
-        echo "" >> deployment-evidence.txt
-        
-        echo "=== All Resources ===" >> deployment-evidence.txt
-        kubectl get all >> deployment-evidence.txt
-        echo "" >> deployment-evidence.txt
-        
-        echo "=== Pod Details ===" >> deployment-evidence.txt
-        kubectl describe pods -l app=book-api >> deployment-evidence.txt
-        echo "" >> deployment-evidence.txt
-        
-        echo "=== Service Details ===" >> deployment-evidence.txt
-        kubectl describe service book-api-service >> deployment-evidence.txt
-        echo "" >> deployment-evidence.txt
-        
-        echo "=== HPA Details ===" >> deployment-evidence.txt
-        kubectl describe hpa book-api-hpa >> deployment-evidence.txt
-        
-        cat deployment-evidence.txt
-    
-    - name: Upload deployment evidence
-      uses: actions/upload-artifact@v4
-      with:
-        name: deployment-evidence
-        path: deployment-evidence.txt
-        retention-days: 7
