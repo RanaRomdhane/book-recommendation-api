@@ -1,75 +1,71 @@
 # 📚 Book Recommendation API
 
-A DevOps-enabled REST API for personalized book recommendations with complete CI/CD, containerization, and observability.
+A simple REST API that recommends books based on your preferences. Built to demonstrate modern DevOps practices.
 
-![CI/CD](https://github.com/RanaRomdhane/book-recommendation-api/actions/workflows/ci-cd.yml/badge.svg)
+![CI/CD](https://github.com/RanaRomdhane/book-recommendation-api/actions/workflows/ci-cd.yaml/badge.svg)
 ![Docker](https://img.shields.io/badge/Docker-Ready-blue)
 ![Kubernetes](https://img.shields.io/badge/Kubernetes-Ready-orange)
 
-## 🚀 Features
+## What Does This Do?
 
-- **Personalized Recommendations**: Content-based filtering algorithm
-- **RESTful API**: Clean, well-documented endpoints
-- **DevOps Ready**: Full CI/CD pipeline with GitHub Actions
-- **Containerized**: Docker and Kubernetes support
-- **Observable**: Metrics, logging, and tracing
-- **Secure**: SAST/DAST scanning and security headers
+This API helps you find books you might like. Tell it what genres you prefer, how long you want the book to be, and what rating you're looking for, and it'll recommend books from its collection.
 
-## 🏗️ Architecture
+**Example**: "I want sci-fi books under 400 pages with at least 4.5 stars" → You get _Dune_ and _Foundation_
 
-- **Framework**: Express.js
-- **Containerization**: Docker
-- **Orchestration**: Kubernetes
-- **CI/CD**: GitHub Actions
-- **Security**: Trivy SAST/DAST
-- **Observability**: Winston logging, custom metrics
+## Quick Start
 
-## 🛠️ Quick Start
+### Option 1: Run Locally (Easiest)
 
-### Local Development
 ```bash
+# Clone the project
 git clone https://github.com/RanaRomdhane/book-recommendation-api
 cd book-recommendation-api
+
+# Install and run
 npm install
-npm run dev
+npm start
+
+# Test it
+curl http://localhost:3000/health
 ```
 
-### Docker
-```bash
-docker build -t book-recommendation-api .
-docker run -p 3000:3000 book-recommendation-api
+### Option 2: Using Docker
 
-```
-### Docker Compose
 ```bash
+# Build and run
+docker build -t book-api .
+docker run -p 3000:3000 book-api
+
+# Or use docker-compose
 docker-compose up
 ```
-### Kubernetes
+
+### Option 3: Kubernetes (For Learning K8s)
+
 ```bash
 # Start minikube
 minikube start
 
-# Deploy application
-kubectl apply -f kubernetes/
+# Deploy everything
+make k8s-deploy
 
-# Get service URL
-minikube service book-api-service --url
+# Get the URL
+make k8s-url
 ```
 
-## 📚 API Endpoints
-### GET /health
-Health check endpoint
+## How to Use the API
 
+### 1. Check if it's working
 ```bash
 curl http://localhost:3000/health
 ```
-### GET /books
-Retrieve all books
+
+### 2. Get all books
 ```bash
 curl http://localhost:3000/books
 ```
-### POST /recommendations
-Get personalized recommendations
+
+### 3. Get recommendations
 ```bash
 curl -X POST http://localhost:3000/recommendations \
   -H "Content-Type: application/json" \
@@ -79,112 +75,184 @@ curl -X POST http://localhost:3000/recommendations \
     "minRating": 4.5
   }'
 ```
-### GET /metrics
-Prometheus-style metrics
 
+### 4. See metrics
 ```bash
 curl http://localhost:3000/metrics
 ```
-### GET /books/:id
-Get specific book by ID
+
+## Architecture
+
+```
+User Request → Express.js API → Book Filter Algorithm → JSON Response
+                    ↓
+              [Logging & Tracing]
+```
+
+**Stack:**
+- Node.js + Express.js (Backend)
+- Docker (Containerization)
+- Kubernetes (Orchestration)
+- GitHub Actions (CI/CD)
+- Trivy (Security Scanning)
+
+## Project Structure
+
+```
+├── src/
+│   ├── app.js              # Main API logic
+│   └── server.js           # Server startup
+├── kubernetes/
+│   ├── deployment.yaml     # K8s deployment config
+│   ├── service.yaml        # K8s service config
+│   └── hpa.yaml           # Auto-scaling config
+├── .github/workflows/
+│   └── ci-cd.yaml         # Automated pipeline
+├── Dockerfile              # Container definition
+├── Makefile               # Common commands
+└── tests/                 # Unit tests
+```
+
+## Development Commands (using Makefile)
 
 ```bash
-curl http://localhost:3000/books/1
+make help              # Show all available commands
+make install           # Install dependencies
+make test              # Run tests
+make docker-build      # Build Docker image
+make k8s-deploy        # Deploy to Kubernetes
+make k8s-logs          # View logs
 ```
 
-## 🔧 Development
-### Project Structure
-``` text
-src/
-├── app.js          # Main application
-tests/
-├── app.test.js     # Test cases
-kubernetes/
-├── deployment.yml  # K8s deployment
-├── ci-deployment.yml
-├── service.yml     # K8s service
-├── hpa.yml         # Auto-scaling
-.github/workflows/
-├── ci-cd.yml       # CI/CD pipeline
+## What Makes This a DevOps Project?
+
+### ✅ Automated Testing
+Every code change runs tests automatically in GitHub Actions.
+
+### ✅ Security Scanning
+- **Trivy filesystem scan**: Checks your code and dependencies for known vulnerabilities
+- **Trivy image scan**: Checks the Docker image for security issues
+- Both run automatically on every push
+
+### ✅ Continuous Deployment
+Push to `main` → Tests run → Image builds → Security scans → Ready to deploy
+
+### ✅ Observability
+- **Logs**: Every request is logged with a unique ID for tracking
+- **Metrics**: See how many requests you're getting and response times
+- **Health checks**: Know if your service is up
+
+### ✅ Container Best Practices
+- Specific image versions (no `latest` tag)
+- Non-root user for security
+- Health checks built-in
+- Optimized layer caching
+
+## Why These Choices?
+
+### Why Docker Health Checks?
+While Kubernetes has its own health checks, Docker's `HEALTHCHECK` is useful for:
+- Local development (quick status check with `docker ps`)
+- Docker Compose setups
+- Any environment without orchestration
+
+### Why HPA (HorizontalPodAutoscaler)?
+Even for small projects, HPA demonstrates:
+- How Kubernetes handles load automatically
+- Production-ready scaling patterns
+- It's a learning opportunity for K8s features
+
+### Why Both `ci-deployment.yaml` and `deployment.yaml`?
+- `ci-deployment.yaml`: Uses nginx for fast CI testing (lightweight)
+- `deployment.yaml`: Uses your actual API for real deployment
+
+### Why No Minikube in CI?
+Running full K8s in CI is slow and unnecessary. The CI focuses on:
+- Testing your code
+- Scanning for vulnerabilities
+- Building the Docker image
+
+Manual deployment is done separately with `make k8s-deploy` or `scripts/deploy.sh`
+
+## Common Tasks
+
+### Update the deployment
+```bash
+# Make your code changes
+git add .
+git commit -m "Add new feature"
+git push
+
+# Deploy to K8s
+make docker-build docker-push
+make k8s-update
 ```
-### Testing
-``` bash
+
+### View logs
+```bash
+make k8s-logs
+```
+
+### Check what's running
+```bash
+make k8s-status
+```
+
+### Clean up
+```bash
+make k8s-delete
+make docker-stop
+make clean
+```
+
+## Testing
+
+```bash
+# Run all tests
 npm test
+
+# With coverage report
 npm run test:coverage
+
+# Watch mode (for development)
 npm run test:watch
 ```
-## 🚢 Deployment
-### CI/CD Pipeline
-The GitHub Actions pipeline automatically:
 
-- Runs tests on every PR
+## Contributing
 
-- Builds Docker image on main branch
+1. **Create a branch** for your feature
+   ```bash
+   git checkout -b fix/improve-readme
+   ```
 
-- Runs security scans (SAST)
+2. **Make your changes** and commit
+   ```bash
+   git commit -m "Make README more friendly"
+   ```
 
-- Deploys to Kubernetes
+3. **Push and create a Pull Request**
+   ```bash
+   git push origin fix/improve-readme
+   ```
 
-### Manual Deployment
-```bash
-# Build and push Docker image
-docker build -t ranaromdhane/book-recommendation-api .
-docker push ranaromdhane/book-recommendation-api
+4. **Wait for peer review** - Someone will review your code
 
-# Deploy to Kubernetes
-kubectl apply -f kubernetes/
-kubectl get pods -w
-kubectl get all
-minikube service book-api-service --url
-```
-## 📊 Monitoring
-### Metrics
-Access application metrics at /metrics endpoint:
-``` bash
-{
-  "requests": {
-    "total": 42,
-    "averageResponseTime": "45.67",
-    "uptime": "1234.56s"
-  },
-  "books": {
-    "total": 10
-  }
-}
-```
+5. **Address feedback** if any, then it gets merged!
 
-### Logs
-- Structured JSON logs are written to logs/combined.log and stdout.
+## Troubleshooting
 
-### Tracing
-- Each request receives a unique trace ID for correlation.
+**Problem**: Container won't start
+- Check logs: `docker logs book-api` or `kubectl logs -l app=book-api`
+- Verify port 3000 isn't already in use
 
-## 🔒 Security
-Security Features
-- **SAST**: Trivy static analysis in CI/CD
+**Problem**: Can't access service in Kubernetes
+- Run `minikube service book-api-service --url` to get the correct URL
+- Check pods are running: `kubectl get pods`
 
-- **DAST**: Runtime security scanning
+**Problem**: Tests failing
+- Make sure dependencies are installed: `npm install`
+- Check Node version: `node --version` (should be 18+)
 
-- **Rate Limiting**: 100 requests per 15 minutes
+## License
 
-- **Security Headers**: Helmet.js configuration
-
-- **Dependency Scanning**: npm audit integration
-
-### Security Scanning
-``` bash
-./security/scan.bat
-```
-## 🤝 Contributing
-
-- Create a feature branch: git checkout -b feature/amazing-feature
-
-- Commit changes: git commit -m 'Add amazing feature'
-
-- Push branch: git push origin feature/amazing-feature
-
-- Open a Pull Request
-
-## 📄 License
-
-This project is licensed under the MIT License.
+MIT License - Feel free to use this for learning!
