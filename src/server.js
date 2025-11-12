@@ -1,24 +1,30 @@
+'use strict';
+
+// Initialize tracing before loading the app (auto-instrumentations)
+require('./tracing');
+
 const app = require('./app');
 
 const PORT = process.env.PORT || 3000;
 
 const server = app.listen(PORT, () => {
-  console.log(`📚 Book Recommendation API running on http://localhost:${PORT}`);
+  console.log(`Book Recommendation API listening on port ${PORT}`);
 });
 
 // Graceful shutdown
-process.on('SIGTERM', () => {
-  console.log('SIGTERM received, shutting down gracefully');
+function gracefulShutdown() {
+  console.log('Shutting down HTTP server...');
   server.close(() => {
-    console.log('Process terminated');
+    console.log('HTTP server closed');
+    process.exit(0);
   });
-});
 
-process.on('SIGINT', () => {
-  console.log('SIGINT received, shutting down gracefully');
-  server.close(() => {
-    console.log('Process terminated');
-  });
-});
+  // Force exit after 5s
+  setTimeout(() => {
+    console.error('Forcing shutdown');
+    process.exit(1);
+  }, 5000);
+}
 
-module.exports = server;
+process.on('SIGINT', gracefulShutdown);
+process.on('SIGTERM', gracefulShutdown);
