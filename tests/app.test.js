@@ -31,8 +31,9 @@ describe('Book Recommendation API', () => {
   it('should return metrics', async () => {
     const res = await request(app).get('/metrics');
     expect(res.statusCode).toEqual(200);
-    expect(res.body.requests).toBeDefined();
-    expect(res.body.books.total).toEqual(10);
+    // Check it returns Prometheus format
+    expect(res.headers['content-type']).toContain('text/plain');
+    expect(res.text).toBeDefined();
   });
 
   it('should return specific book by ID', async () => {
