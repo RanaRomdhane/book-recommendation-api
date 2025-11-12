@@ -5,7 +5,7 @@ A simple REST API that recommends books based on your preferences. Built to demo
 ![CI/CD](https://github.com/RanaRomdhane/book-recommendation-api/actions/workflows/ci-cd.yaml/badge.svg)
 ![Docker](https://img.shields.io/badge/Docker-Ready-blue)
 ![Kubernetes](https://img.shields.io/badge/Kubernetes-Ready-orange)
-![OpenTelemetry](https://img.shields.io/badge/Observability-OpenTelemetry%2520%257C%2520Prometheus%2520%257C%2520Grafana-green)
+![Observability](https://img.shields.io/badge/Observability-OpenTelemetry%2520%257C%2520Prometheus%2520%257C%2520Grafana-green)
 
 ## What Does This Do?
 
