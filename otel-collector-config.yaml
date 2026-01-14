@@ -7,12 +7,17 @@ receivers:
         endpoint: 0.0.0.0:4317
 
 exporters:
-  logging:
-    loglevel: debug
-  jaeger:
-    endpoint: jaeger:14250
+  # Debug exporter for logging (replaces deprecated 'logging')
+  debug:
+    verbosity: detailed
+
+  # Send traces to Jaeger via OTLP (Jaeger supports OTLP natively now)
+  otlp/jaeger:
+    endpoint: jaeger:4317
     tls:
       insecure: true
+
+  # Prometheus exporter for metrics
   prometheus:
     endpoint: 0.0.0.0:8889
     const_labels:
@@ -20,9 +25,12 @@ exporters:
 
 processors:
   batch:
+    timeout: 1s
+    send_batch_size: 1024
 
 extensions:
   health_check:
+    endpoint: 0.0.0.0:13133
 
 service:
   extensions: [health_check]
@@ -30,8 +38,8 @@ service:
     traces:
       receivers: [otlp]
       processors: [batch]
-      exporters: [jaeger, logging]
+      exporters: [otlp/jaeger, debug]
     metrics:
       receivers: [otlp]
       processors: [batch]
-      exporters: [prometheus, logging]
+      exporters: [prometheus, debug]

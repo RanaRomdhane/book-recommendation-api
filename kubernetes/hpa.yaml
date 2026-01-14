@@ -1,6 +1,3 @@
-# HorizontalPodAutoscaler automatically scales pods based on CPU/memory usage
-# For a small project, this demonstrates K8s autoscaling capabilities
-# In production, this prevents service degradation under load
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:

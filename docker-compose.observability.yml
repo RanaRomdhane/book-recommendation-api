@@ -1,7 +1,5 @@
-version: '3.8'
-
 services:
-  # Your existing API service
+  # Your API service
   book-api:
     build: .
     ports:
@@ -10,31 +8,41 @@ services:
       - NODE_ENV=production
       - PORT=3000
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318
+      - OTEL_SERVICE_NAME=book-recommendation-api
     depends_on:
-      - otel-collector
+      otel-collector:
+        condition: service_started
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   # OpenTelemetry Collector
   otel-collector:
-    image: otel/opentelemetry-collector:0.96.0
+    image: otel/opentelemetry-collector-contrib:0.96.0
     command: ["--config=/etc/otel-collector-config.yaml"]
     volumes:
-      - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml
+      - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro
     ports:
-      - "4318:4318" # OTLP HTTP
-      - "4317:4317" # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP
+      - "4317:4317"   # OTLP gRPC
+      - "8889:8889"   # Prometheus metrics exporter
     depends_on:
       - jaeger
       - prometheus
+    restart: unless-stopped
 
-  # Jaeger for tracing
+  # Jaeger for tracing (with OTLP support)
   jaeger:
     image: jaegertracing/all-in-one:1.55
     ports:
-      - "16686:16686" # UI
-      - "14268:14268" # Collector endpoint
+      - "16686:16686"  # Jaeger UI
+      - "14268:14268"  # Collector HTTP
     environment:
       - COLLECTOR_OTLP_ENABLED=true
+    restart: unless-stopped
 
   # Prometheus for metrics
   prometheus:
@@ -42,7 +50,7 @@ services:
     ports:
       - "9090:9090"
     volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
@@ -51,6 +59,7 @@ services:
       - '--web.console.templates=/etc/prometheus/consoles'
       - '--storage.tsdb.retention.time=200h'
       - '--web.enable-lifecycle'
+    restart: unless-stopped
 
   # Grafana for dashboards
   grafana:
@@ -59,12 +68,14 @@ services:
       - "3001:3000"
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
     volumes:
-      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards
-      - ./grafana/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
+      - ./grafana/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
       - grafana_data:/var/lib/grafana
     depends_on:
       - prometheus
+      - jaeger
+    restart: unless-stopped
 
 volumes:
   prometheus_data:

@@ -16,23 +16,16 @@ spec:
     spec:
       containers:
       - name: book-api
-        # Use specific image tag (git SHA) instead of 'latest'
-        # Update this manually or via your deployment script
-        image: ranaromdhane/book-recommendation-api:main
-        imagePullPolicy: Always
+        image: book-recommendation-api:v1
+        imagePullPolicy: Never
         ports:
         - containerPort: 3000
           name: http
         env:
         - name: NODE_ENV
           value: "production"
-        # Port 3000 is already the default, but keeping it explicit for clarity
         - name: PORT
           value: "3000"
-        - name: OTEL_EXPORTER_OTLP_ENDPOINT
-          value: "http://otel-collector:4318"
-        - name: OTEL_SERVICE_NAME
-          value: "book-recommendation-api"
         resources:
           requests:
             memory: "128Mi"
@@ -40,20 +33,19 @@ spec:
           limits:
             memory: "256Mi"
             cpu: "200m"
-        # Kubernetes health checks (more reliable than Docker HEALTHCHECK)
         livenessProbe:
           httpGet:
             path: /health
             port: 3000
-          initialDelaySeconds: 10
+          initialDelaySeconds: 15
           periodSeconds: 10
-          timeoutSeconds: 3
+          timeoutSeconds: 5
           failureThreshold: 3
         readinessProbe:
           httpGet:
             path: /health
             port: 3000
-          initialDelaySeconds: 5
+          initialDelaySeconds: 10
           periodSeconds: 5
           timeoutSeconds: 3
           failureThreshold: 2
